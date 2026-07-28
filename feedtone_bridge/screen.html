@@ -1,0 +1,75 @@
+<style>
+  #feedtone-bridge-root{min-height:100%;box-sizing:border-box;padding:28px;color:#e8e3da;background:#0d1013;font:14px/1.4 system-ui,sans-serif}
+  #feedtone-bridge-root *{box-sizing:border-box}
+  .ft-shell{max-width:1180px;margin:0 auto;border:1px solid #293039;background:#12161a;box-shadow:0 24px 70px rgba(0,0,0,.35)}
+  .ft-head{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;border-bottom:1px solid #293039;background:linear-gradient(180deg,#191e23,#13171b)}
+  .ft-kicker{color:#e99b4c;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+  .ft-title{margin:4px 0 0;font-size:22px;font-weight:720;color:#f4f0e9}
+  .ft-subtitle{margin-top:4px;color:#8f99a5}
+  .ft-status{color:#9aa5b1;font-size:12px;text-align:right}
+  .ft-status[data-ok="1"]{color:#75d6a7}
+  .ft-layout{display:grid;grid-template-columns:280px 1fr;min-height:510px}
+  .ft-tones{padding:22px;border-right:1px solid #293039;background:#101418}
+  .ft-section-title{margin-bottom:12px;color:#8994a1;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+  .ft-arrangement{width:100%;margin:0 0 14px;padding:9px 10px;border:1px solid #303843;border-radius:6px;color:#e8e3da;background:#171c21}
+  .ft-tone-list{display:flex;flex-direction:column;gap:7px;max-height:390px;overflow:auto}
+  .ft-tone,.ft-button{border:1px solid #303843;border-radius:6px;color:#cfd6de;background:#171c21;cursor:pointer;text-align:left}
+  .ft-tone{width:100%;padding:11px 12px}
+  .ft-tone:hover,.ft-button:hover{border-color:#6d4d32;background:#201a15;color:#fff}
+  .ft-tone[data-active="1"]{border-color:#d98a42;background:#2a1d13;color:#ffc17f;box-shadow:inset 3px 0 #e99b4c}
+  .ft-button{padding:9px 13px;text-align:center;font-weight:650}
+  .ft-button:disabled{opacity:.38;cursor:default}
+  .ft-follow{width:100%;margin-top:14px}
+  .ft-import{margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid #293039}
+  .ft-import-row{display:flex;gap:8px}
+  .ft-import-row .ft-button{flex:1}
+  .ft-main{padding:26px 28px}
+  .ft-console{padding:18px 20px;border-left:3px solid #e99b4c;background:#171a1d}
+  .ft-console strong{display:block;font-size:18px;color:#f3eee7}
+  .ft-console span{display:block;margin-top:3px;color:#8f99a5}
+  .ft-faders{display:grid;grid-template-columns:repeat(5,minmax(88px,1fr));gap:12px;margin-top:26px}
+  .ft-fader{display:flex;min-height:245px;flex-direction:column;align-items:center;padding:18px 10px;border:1px solid #293039;background:#101418}
+  .ft-fader label{font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:#d7dce2}
+  .ft-fader output{margin-top:8px;color:#e99b4c;font-variant-numeric:tabular-nums}
+  .ft-fader input{width:150px;margin:82px 0 0;accent-color:#e99b4c;transform:rotate(-90deg)}
+  .ft-fader input:disabled{opacity:.25}
+  .ft-actions{display:flex;align-items:center;gap:12px;margin-top:22px}
+  .ft-save{border-color:#a9662d;color:#0e1012;background:#e99b4c}
+  .ft-save:hover{color:#0e1012;background:#f3ac65}
+  .ft-message{min-height:20px;color:#8f99a5}
+  .ft-message[data-error="1"]{color:#ff8585}
+  @media(max-width:850px){.ft-layout{grid-template-columns:1fr}.ft-tones{border-right:0;border-bottom:1px solid #293039}.ft-tone-list{max-height:170px}.ft-faders{grid-template-columns:repeat(2,1fr)}}
+</style>
+<main id="feedtone-bridge-root">
+  <section class="ft-shell">
+    <header class="ft-head">
+      <div><div class="ft-kicker">FeedTone Bridge</div><h1 class="ft-title" data-ft-song>Open a song in FeedBack</h1><div class="ft-subtitle" data-ft-context>Waiting for a saved FeedTone song.</div></div>
+      <div class="ft-status" data-ft-status>Waiting for a song</div>
+    </header>
+    <div class="ft-layout">
+      <aside class="ft-tones">
+        <div class="ft-import">
+          <div class="ft-section-title">Tone package</div>
+          <input type="file" accept=".fftone,.feedtone" data-ft-package hidden>
+          <div class="ft-import-row"><button type="button" class="ft-button ft-save" data-ft-import>Import .fftone</button><button type="button" class="ft-button" data-ft-restore disabled>Restore</button></div>
+        </div>
+        <div class="ft-section-title">Arrangement</div>
+        <select class="ft-arrangement" data-ft-arrangements disabled><option>Open a song</option></select>
+        <div class="ft-section-title">Song tones</div>
+        <div class="ft-tone-list" data-ft-tones></div>
+        <button type="button" class="ft-button ft-follow" data-ft-follow disabled>Follow song timeline</button>
+      </aside>
+      <section class="ft-main">
+        <div class="ft-console"><strong>Live FeedBack mixer</strong><span>Changes are applied to the loaded song. Save stores them for this arrangement and tone.</span></div>
+        <div class="ft-faders">
+          <div class="ft-fader"><label>Song</label><output data-ft-value="song">65%</output><input data-ft-mixer="song" type="range" min="0" max="100" step="1" value="65"></div>
+          <div class="ft-fader"><label>Guitar</label><output data-ft-value="monitor">1.00x</output><input data-ft-mixer="monitor" type="range" min="0" max="4" step="0.05" value="1"></div>
+          <div class="ft-fader"><label>Input</label><output data-ft-value="input">0.0 dB</output><input data-ft-mixer="input" type="range" min="-24" max="12" step="0.5" value="0"></div>
+          <div class="ft-fader"><label>AMP</label><output data-ft-value="amp">0.0 dB</output><input data-ft-mixer="amp" type="range" min="-24" max="12" step="0.5" value="0"></div>
+          <div class="ft-fader"><label>NAM</label><output data-ft-value="nam">1.00x</output><input data-ft-mixer="nam" type="range" min="0" max="2" step="0.05" value="1"></div>
+        </div>
+        <div class="ft-actions"><button type="button" class="ft-button ft-save" data-ft-save>Save this tone mix</button><div class="ft-message" data-ft-message>Live controls are ready.</div></div>
+      </section>
+    </div>
+  </section>
+</main>

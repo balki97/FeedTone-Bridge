@@ -1,0 +1,35 @@
+{
+  "id": "feedtone_bridge",
+  "name": "FeedTone Mix Bridge",
+  "version": "1.7.1",
+  "private": true,
+  "description": "Applies FeedTone rigs and exact per-song mixer values through Rig Builder's native contracts.",
+  "category": "audio",
+  "nav": {"label": "FeedTone", "screen": "plugin-feedtone_bridge"},
+  "screen": "screen.html",
+  "script": "screen.js",
+  "routes": "routes.py",
+  "standards": ["capability-pipelines.v1", "plugin-runtime-idempotent.v1"],
+  "ui": [
+    {"id": "feedtone-bridge-nav", "surface": "navigation", "region": "primary-nav.plugins", "label": "FeedTone", "targetScreenId": "plugin-feedtone_bridge"},
+    {"id": "feedtone-bridge-screen", "surface": "plugin-screen", "region": "screens.plugins", "label": "FeedTone", "screenId": "plugin-feedtone_bridge"}
+  ],
+  "capabilities": {
+    "ui.navigation": {
+      "roles": ["provider", "observer"],
+      "operations": ["register-entry", "register-screen"],
+      "events": ["ui-navigation:screen-registered"],
+      "mode": "active", "compatibility": "shim-allowed", "ownership": "multi-provider", "safety": "safe", "version": 1
+    },
+    "audio-mix": {
+      "roles": ["requester", "observer"],
+      "commands": ["list-faders", "get-fader-value", "set-fader-value"],
+      "events": ["fader-value-changed", "fader-unavailable"],
+      "mode": "active",
+      "compatibility": "none",
+      "ownership": "multi-provider",
+      "safety": "safe",
+      "version": 1
+    }
+  }
+}
