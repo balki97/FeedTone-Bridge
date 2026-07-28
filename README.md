@@ -25,7 +25,3 @@ Every guitar and audio interface behaves differently. After importing a tone, ad
 ## Create your own tones
 
 To create and export your own `.fftone` packages, get the FeedTone desktop app from the [FeedForge Discord](https://discord.gg/9cUe6cacQN). FeedTone is distributed only through the official Discord server.
-
-## Contents
-
-The distributable plugin is the `feedtone_bridge` folder containing `plugin.json`, `routes.py`, `screen.html`, and `screen.js`.
