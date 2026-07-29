@@ -1,5 +1,7 @@
 # FeedTone Bridge for FeedBack
 
+Use the persistent **FeedTone On / FeedTone Off** switch in the plugin screen or in-song FeedTone panel to stop all bridge tone and mixer automation without restarting FeedBack.
+
 FeedTone Bridge imports complete `.fftone` song packages into FeedBack. It restores every arrangement, tone state, signal chain, and saved mixer value contained in the package. The FeedTone desktop app is not required to import packages.
 
 ## Install

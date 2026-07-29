@@ -4,6 +4,8 @@
     window.__feedToneMixBridgeLoaded = true;
 
     const REQUESTER = 'feedtone_bridge';
+    const ENABLED_KEY = 'feedtone_bridge_enabled';
+    let bridgeEnabled = localStorage.getItem(ENABLED_KEY) !== 'false';
     const originals = new Map();
     const manualOverrides = new Set();
     const ownWrites = new Map();
@@ -36,7 +38,34 @@
     let controlBusy = false;
     let lastControlNonce = '';
     let openGate = null;
-    window.__feedToneBridgeStatus = { state: 'waiting', tone: '', profile: '', updatedAt: 0 };
+    window.__feedToneBridgeStatus = { state: bridgeEnabled ? 'waiting' : 'disabled', tone: '', profile: '', updatedAt: 0 };
+
+    function setBridgeEnabled(enabled) {
+        bridgeEnabled = Boolean(enabled);
+        localStorage.setItem(ENABLED_KEY, String(bridgeEnabled));
+        activeToken += 1;
+        pendingApplyEvent = null;
+        lastHighwayIdentity = '';
+        lastLiveRevision = '';
+        lastLiveChainRevision = '';
+        lastLiveMixerRevision = '';
+        if (!bridgeEnabled) {
+            const release = openGate && openGate.release;
+            openGate = null;
+            hideLoadingGate();
+            if (typeof release === 'function') release();
+            if (window.RbMegaChain && typeof window.RbMegaChain.clearForcedTone === 'function') {
+                Promise.resolve(window.RbMegaChain.clearForcedTone()).catch(() => {});
+            }
+        } else {
+            setTimeout(pollHighwayTone, 0);
+            setTimeout(pollLivePreview, 0);
+        }
+        window.__feedToneBridgeStatus = {
+            state: bridgeEnabled ? 'waiting' : 'disabled', tone: '', profile: '', updatedAt: Date.now(),
+        };
+        return bridgeEnabled;
+    }
 
     function normalise(value) {
         return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -332,7 +361,9 @@
     }
 
     async function applyLiveMixer(profile, requestedTargets, force = true, pieces = []) {
+        if (!bridgeEnabled) return { faders: [], results: [] };
         return queueMixerWrite(async () => {
+            if (!bridgeEnabled) return { faders: [], results: [] };
             const targets = new Set(Array.isArray(requestedTargets) ? requestedTargets.map(String) : []);
             const listed = await command('list-faders');
             const faders = listed && listed.payload && Array.isArray(listed.payload.faders) ? listed.payload.faders : [];
@@ -340,6 +371,7 @@
             // Rig Builder persists Input and AMP through the same settings
             // service. Commit one fader at a time so those writes cannot race.
             for (const fader of faders) {
+                if (!bridgeEnabled) break;
                 const target = exactProfileTarget(fader, profile || {}, pieces);
                 if (!target || !Number.isFinite(Number(target.value))) continue;
                 const targetKeys = target.keys || [target.key];
@@ -352,7 +384,7 @@
     }
 
     async function readMixerSnapshot() {
-        if (mixerReadbackBusy || mixerWriteBusy || ownWrites.size) return;
+        if (!bridgeEnabled || mixerReadbackBusy || mixerWriteBusy || ownWrites.size) return;
         mixerReadbackBusy = true;
         try {
             const listed = await command('list-faders');
@@ -479,11 +511,12 @@
     }
 
     async function pollLivePreview() {
-        if (livePreviewBusy) return;
+        if (!bridgeEnabled || livePreviewBusy) return;
         livePreviewBusy = true;
         try {
             const response = await fetch('/api/plugins/feedtone_bridge/live', { cache: 'no-store' });
             const value = await response.json();
+            if (!bridgeEnabled) return;
             if (!value || !value.active || !value.preset || !liveSongMatches(value)) return;
             const revision = String(value.revision || '');
             if (!revision || revision === lastLiveRevision) return;
@@ -547,6 +580,7 @@
     }
 
     async function apply(event) {
+        if (!bridgeEnabled) return;
         if (applyBusy) {
             pendingApplyEvent = event;
             return;
@@ -563,6 +597,7 @@
     }
 
     async function applyNow(event) {
+        if (!bridgeEnabled) return { state: 'disabled' };
         const token = ++activeToken;
         const target = eventTarget(event);
         if (target && Object.keys(target).length) lastKnownTarget = { ...lastKnownTarget, ...target };
@@ -571,6 +606,7 @@
         const context = contextFor(target, display, current);
         const filename = target.filename || current.filename || current.file || '';
         await syncRig(filename);
+        if (!bridgeEnabled) return { state: 'disabled' };
         if (context && context !== activeContext) {
             activeContext = context;
             manualOverrides.clear();
@@ -616,7 +652,7 @@
         // clicks, late transitions and occasionally a stale clean chain.
         // Explicit loading is only needed while the initial open gate is held.
         const mega = megaChainState();
-        if (openGate && (!mega || (!mega.active && !mega.pending))
+        if (bridgeEnabled && openGate && (!mega || (!mega.active && !mega.pending))
             && Number.isFinite(presetId) && presetIdentity !== lastNativePresetIdentity) {
             try {
                 await loadNativePreset(presetId);
@@ -645,6 +681,7 @@
         const requested = new Set(Array.isArray(activeProfile.automate) ? activeProfile.automate : ['song', 'monitor', 'input', 'amp', 'nam']);
         const pieces = stagedPreset && Array.isArray(stagedPreset.pieces) ? stagedPreset.pieces : [];
         const applied = await applyLiveMixer(activeProfile, Array.from(requested), false, pieces);
+        if (!bridgeEnabled) return { state: 'disabled' };
         const faders = applied.faders;
         const results = applied.results;
         const represented = new Set(results.flatMap(result => result.keys || []));
@@ -660,7 +697,7 @@
     }
 
     function applyWithHydrationRetry(event) {
-        if (openGate) return;
+        if (!bridgeEnabled || openGate) return;
         apply(event);
         // Rig Builder registers AMP after its own song-load work. Re-check once
         // after hydration; a user move made in the meantime remains protected.
@@ -685,7 +722,7 @@
     }
 
     function pollHighwayTone() {
-        if (openGate) return;
+        if (!bridgeEnabled || openGate) return;
         const tone = resolveHighwayTone();
         if (!tone) return;
         const current = (window.feedBack && window.feedBack.currentSong) || {};
@@ -717,7 +754,7 @@
     }
 
     async function publishPlaybackContext() {
-        if (playbackPublishBusy) return;
+        if (!bridgeEnabled || playbackPublishBusy) return;
         const highway = window.highway;
         if (!highway || typeof highway.getTime !== 'function') return;
         const current = (window.feedBack && window.feedBack.currentSong) || {};
@@ -814,6 +851,7 @@
         const preset = stagedPresetFor(context, activeTone);
         return {
             ...context, activeTone, tones, mixer: { ...(preset ? preset.mixer : latestMixerSnapshot) },
+            enabled: bridgeEnabled,
             forcedTone: window.RbMegaChain && window.RbMegaChain.forcedToneKey ? String(window.RbMegaChain.forcedToneKey() || '') : '',
             namAvailable: chainUsesNam(preset && preset.pieces),
             status: { ...(window.__feedToneBridgeStatus || {}) },
@@ -821,6 +859,7 @@
     }
 
     async function forcePanelTone(tone) {
+        if (!bridgeEnabled) throw new Error('Turn FeedTone on first');
         const context = bridgeContext();
         await syncRig(context.filename);
         if (!window.RbMegaChain || typeof window.RbMegaChain.forceToneByKey !== 'function') throw new Error('Rig Builder tone control is unavailable');
@@ -836,6 +875,7 @@
     }
 
     async function followPanelTimeline() {
+        if (!bridgeEnabled) throw new Error('Turn FeedTone on first');
         if (window.RbMegaChain && typeof window.RbMegaChain.clearForcedTone === 'function') await window.RbMegaChain.clearForcedTone();
         lastHighwayIdentity = '';
         pollHighwayTone();
@@ -843,6 +883,7 @@
     }
 
     async function selectPanelArrangement(index) {
+        if (!bridgeEnabled) throw new Error('Turn FeedTone on first');
         const state = bridgePanelState();
         const target = state.arrangements.find(item => String(item.index) === String(index));
         if (!target) throw new Error('The selected arrangement is unavailable');
@@ -858,6 +899,7 @@
     }
 
     async function setPanelMixer(key, value) {
+        if (!bridgeEnabled) throw new Error('Turn FeedTone on first');
         const fields = { song: 'song_percent', monitor: 'monitor', input: 'input_db', amp: 'amp_db', nam: 'nam_output' };
         if (!fields[key]) throw new Error('Unknown mixer control');
         const state = bridgePanelState();
@@ -872,6 +914,7 @@
     }
 
     async function savePanelMixer() {
+        if (!bridgeEnabled) throw new Error('Turn FeedTone on first');
         const state = bridgePanelState();
         const response = await fetch('/api/plugins/feedtone_bridge/mix', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -882,7 +925,7 @@
         return result;
     }
 
-    window.FeedToneBridge = { state: bridgePanelState, forceTone: forcePanelTone, selectArrangement: selectPanelArrangement, followTimeline: followPanelTimeline, setMixer: setPanelMixer, saveMixer: savePanelMixer };
+    window.FeedToneBridge = { state: bridgePanelState, setEnabled: setBridgeEnabled, forceTone: forcePanelTone, selectArrangement: selectPanelArrangement, followTimeline: followPanelTimeline, setMixer: setPanelMixer, saveMixer: savePanelMixer };
 
     function registerBridgeScreen() {
         const nav = window.slopsmith && window.slopsmith.uiNavigation;
@@ -903,6 +946,7 @@
         const packageInput = root.querySelector('[data-ft-package]');
         const importPackage = root.querySelector('[data-ft-import]');
         const restorePackage = root.querySelector('[data-ft-restore]');
+        const enabledToggle = root.querySelector('[data-ft-enabled]');
         let toneIdentity = '';
         let saveTimer = null;
         let pendingMixer = null;
@@ -912,25 +956,28 @@
             root.querySelector('[data-ft-song]').textContent = state.filename ? `${state.artist ? `${state.artist} - ` : ''}${state.title || filenameOnly(state.filename)}` : 'Open a song in FeedBack';
             root.querySelector('[data-ft-context]').textContent = state.filename ? `${state.arrangement || 'Arrangement'} / ${state.activeTone || 'Waiting for tone'}` : 'The controls will appear when a saved FeedTone song is loaded.';
             const status = root.querySelector('[data-ft-status]');
-            status.textContent = state.status.state === 'verified' ? 'Live controls connected' : state.status.state === 'verification-failed' ? 'Control sync needs attention' : 'Waiting for tones';
-            status.dataset.ok = state.status.state === 'verified' ? '1' : '0';
+            status.textContent = !state.enabled ? 'Off - bridge automation stopped' : state.status.state === 'verified' ? 'Live controls connected' : state.status.state === 'verification-failed' ? 'Control sync needs attention' : 'Waiting for tones';
+            status.dataset.ok = state.enabled && state.status.state === 'verified' ? '1' : '0';
+            enabledToggle.textContent = state.enabled ? 'FeedTone On' : 'FeedTone Off';
+            enabledToggle.dataset.enabled = state.enabled ? '1' : '0';
             const arrangementIdentity = `${state.arrangementIndex}|${state.arrangements.map(item => `${item.index}:${item.name}`).join('|')}`;
             if (arrangementList.dataset.identity !== arrangementIdentity) {
                 arrangementList.dataset.identity = arrangementIdentity;
                 arrangementList.replaceChildren();
                 state.arrangements.forEach(item => arrangementList.add(new Option(item.name, item.index, false, String(item.index) === String(state.arrangementIndex))));
             }
-            arrangementList.disabled = !state.filename || !state.arrangements.length;
-            importPackage.disabled = !state.filename;
-            follow.disabled = !state.forcedTone;
-            const nextToneIdentity = `${state.activeTone}|${state.forcedTone}|${state.tones.map(item => item.key).join('|')}`;
+            arrangementList.disabled = !state.enabled || !state.filename || !state.arrangements.length;
+            importPackage.disabled = !state.enabled || !state.filename;
+            follow.disabled = !state.enabled || !state.forcedTone;
+            const nextToneIdentity = `${state.enabled}|${state.activeTone}|${state.forcedTone}|${state.tones.map(item => item.key).join('|')}`;
             if (nextToneIdentity !== toneIdentity) {
                 toneIdentity = nextToneIdentity;
                 toneList.replaceChildren();
                 state.tones.forEach(item => {
                     const button = document.createElement('button');
                     button.type = 'button'; button.className = 'ft-tone'; button.textContent = item.name;
-                    button.dataset.active = normalise(item.key) === normalise(state.activeTone) ? '1' : '0';
+                    button.dataset.active = state.enabled && normalise(item.key) === normalise(state.activeTone) ? '1' : '0';
+                    button.disabled = !state.enabled;
                     button.addEventListener('click', async () => { try { showMessage(`Loading ${item.name}...`); await forcePanelTone(item.key); showMessage(`${item.name} pinned for audition.`); render(); } catch (error) { showMessage(String(error.message || error), true); } });
                     toneList.appendChild(button);
                 });
@@ -938,12 +985,13 @@
             root.querySelectorAll('[data-ft-mixer]').forEach(input => {
                 const field = { song: 'song_percent', monitor: 'monitor', input: 'input_db', amp: 'amp_db', nam: 'nam_output' }[input.dataset.ftMixer];
                 if (document.activeElement !== input && Number.isFinite(Number(state.mixer[field]))) input.value = state.mixer[field];
-                const disabled = !state.filename || (input.dataset.ftMixer === 'nam' && !state.namAvailable);
+                const disabled = !state.enabled || !state.filename || (input.dataset.ftMixer === 'nam' && !state.namAvailable);
                 input.disabled = disabled;
                 const output = root.querySelector(`[data-ft-value="${input.dataset.ftMixer}"]`);
                 output.textContent = input.dataset.ftMixer === 'song' ? `${Math.round(Number(input.value))}%` : input.dataset.ftMixer === 'monitor' || input.dataset.ftMixer === 'nam' ? `${Number(input.value).toFixed(2)}x` : `${Number(input.value).toFixed(1)} dB`;
             });
         };
+        enabledToggle.addEventListener('click', () => { setBridgeEnabled(!bridgeEnabled); render(); showMessage(bridgeEnabled ? 'FeedTone is active.' : 'FeedTone stopped. Rig Builder is no longer overridden.'); });
         const commitPendingMixer = async () => {
             clearTimeout(saveTimer);
             const pending = pendingMixer;
@@ -1121,12 +1169,13 @@
     }
 
     async function pollOpenCommand() {
-        if (openCommandBusy) return;
+        if (!bridgeEnabled || openCommandBusy) return;
         openCommandBusy = true;
         let nonce = '';
         try {
             const response = await fetch('/api/plugins/feedtone_bridge/command', { cache: 'no-store' });
             const pending = await response.json();
+            if (!bridgeEnabled) return;
             if (!pending || !pending.pending || !pending.nonce || !pending.filename) return;
             nonce = String(pending.nonce);
             if (nonce === lastOpenCommand) return;
@@ -1140,6 +1189,7 @@
             showLoadingGate('Loading FeedTone tones…');
             try { await fetch('/api/rescan', { method: 'POST' }); } catch (_) {}
             await new Promise(resolve => setTimeout(resolve, 450));
+            if (!bridgeEnabled) return;
             if (typeof window.playSong !== 'function') throw new Error('FeedBack player is not ready');
             closePlayerPanel();
             const rawIndex = pending.arrangement_index;
@@ -1149,6 +1199,7 @@
             const launch = Promise.resolve(window.playSong(encodeURIComponent(String(pending.filename)), arrangementIndex)).then(() => never);
             await Promise.race([songReady, launch]);
             await new Promise(resolve => setTimeout(resolve, 700));
+            if (!bridgeEnabled) return;
             const verified = await finishOpenGate(pending);
             if (!verified) throw new Error('FeedTone mixer verification failed');
             await fetch(`/api/plugins/feedtone_bridge/command/ack?nonce=${encodeURIComponent(nonce)}`, { method: 'POST' });
@@ -1159,14 +1210,15 @@
             if (typeof release === 'function') release();
             setTimeout(pollHighwayTone, 0);
         } catch (error) {
-            showLoadingGate(`FeedTone could not verify the rig and mixer. The song remains stopped. ${String(error && error.message || error)}`);
+            if (bridgeEnabled) showLoadingGate(`FeedTone could not verify the rig and mixer. The song remains stopped. ${String(error && error.message || error)}`);
+            else hideLoadingGate();
             if (nonce && lastOpenCommand === nonce) lastOpenCommand = '';
         } finally {
             openCommandBusy = false;
         }
     }
     async function pollFeedToneControl() {
-        if (controlBusy) return;
+        if (!bridgeEnabled || controlBusy) return;
         controlBusy = true;
         let nonce = '';
         try {

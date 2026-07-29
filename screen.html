@@ -8,6 +8,8 @@
   .ft-subtitle{margin-top:4px;color:#8f99a5}
   .ft-status{color:#9aa5b1;font-size:12px;text-align:right}
   .ft-status[data-ok="1"]{color:#75d6a7}
+  .ft-power{min-width:118px;text-align:center}
+  .ft-power[data-enabled="0"]{border-color:#a84d4d;background:#2a1717;color:#ffaaaa}
   .ft-layout{display:grid;grid-template-columns:280px 1fr;min-height:510px}
   .ft-tones{padding:22px;border-right:1px solid #293039;background:#101418}
   .ft-section-title{margin-bottom:12px;color:#8994a1;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
@@ -44,7 +46,7 @@
   <section class="ft-shell">
     <header class="ft-head">
       <div><div class="ft-kicker">FeedTone Bridge</div><h1 class="ft-title" data-ft-song>Open a song in FeedBack</h1><div class="ft-subtitle" data-ft-context>Waiting for a saved FeedTone song.</div></div>
-      <div class="ft-status" data-ft-status>Waiting for a song</div>
+      <div><button type="button" class="ft-button ft-power" data-ft-enabled>FeedTone On</button><div class="ft-status" data-ft-status>Waiting for a song</div></div>
     </header>
     <div class="ft-layout">
       <aside class="ft-tones">

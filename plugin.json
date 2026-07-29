@@ -1,7 +1,7 @@
 {
   "id": "feedtone_bridge",
   "name": "FeedTone Mix Bridge",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "private": true,
   "description": "Applies FeedTone rigs and exact per-song mixer values through Rig Builder's native contracts.",
   "category": "audio",
