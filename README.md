@@ -4,10 +4,14 @@ FeedTone Bridge imports complete `.fftone` song packages into FeedBack. It resto
 
 ## Install
 
-1. Download `FeedTone-Bridge.zip` from the latest release.
-2. Close FeedBack.
-3. Extract the `feedtone_bridge` folder to `%APPDATA%\feedback-desktop\plugins\`.
-4. Restart FeedBack and open **FeedTone** from the plugin navigation.
+1. Open FeedBack's **Plugin Manager**.
+2. Paste `https://github.com/balki97/FeedTone-Bridge.git`.
+3. Select **Install**, then restart FeedBack.
+4. Open **FeedTone** from the plugin navigation.
+
+Future bridge releases can be installed with the Plugin Manager's **Update** button. If an older bundled or manually installed FeedTone Bridge is already listed, remove it first, restart FeedBack, and then install the GitHub version.
+
+Manual installation remains available from the latest GitHub release.
 
 ## Import a tone
 
