@@ -23,7 +23,8 @@ SYNC_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "fee
 LIVE_FILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "feedback-live.json"
 PLAYBACK_FILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "feedback-playback.json"
 CONTROL_FILE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "feedback-control.json"
-PACKAGE_BACKUPS = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "tone-package-backups"
+_DEFAULT_PACKAGE_BACKUPS = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "tone-package-backups"
+PACKAGE_BACKUPS = _DEFAULT_PACKAGE_BACKUPS
 PACKAGE_SCHEMAS = {"feedtone.tone-package.v1"}
 MAX_PACKAGE_BYTES = 128 * 1024 * 1024
 MAX_EXPANDED_BYTES = 512 * 1024 * 1024
@@ -31,6 +32,16 @@ MAX_EXPANDED_BYTES = 512 * 1024 * 1024
 
 def _norm(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+def _package_backups() -> Path:
+    if PACKAGE_BACKUPS != _DEFAULT_PACKAGE_BACKUPS:
+        return PACKAGE_BACKUPS
+    try:
+        workspace = json.loads((Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FeedTone" / "workspace.json").read_text(encoding="utf-8"))
+        return Path(workspace["backup_folder"]) / "tone-packages"
+    except Exception:
+        return PACKAGE_BACKUPS
 
 
 def _profiles() -> dict:
@@ -149,7 +160,8 @@ def _sqlite_backup(source: Path, target: Path) -> None:
 
 def _backup_package_state(target: str, config: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    root = PACKAGE_BACKUPS / f"{_norm(target)}-{stamp}"
+    backups = _package_backups()
+    root = backups / f"{_norm(target)}-{stamp}"
     root.mkdir(parents=True, exist_ok=True)
     sync = SYNC_DIR / f"{_norm(target)}.json"
     if sync.is_file(): shutil.copy2(sync, root / "sync.json")
@@ -157,7 +169,7 @@ def _backup_package_state(target: str, config: Path) -> Path:
     database = _database(config)
     if database: _sqlite_backup(database, root / "rig-builder.sqlite")
     _write_json(root / "backup.json", {"target": target, "database": str(database or ""), "created_at": time.time()})
-    _write_json(PACKAGE_BACKUPS / f"{_norm(target)}-latest.json", {"path": str(root)})
+    _write_json(backups / f"{_norm(target)}-latest.json", {"path": str(root)})
     return root
 
 
@@ -202,7 +214,7 @@ def _import_package_blob(data: bytes, target: str, title: str = "", artist: str 
 
 def _restore_package_state(target: str, config: Path | None = None) -> dict:
     target = Path(str(target or "")).name
-    pointer = PACKAGE_BACKUPS / f"{_norm(target)}-latest.json"
+    pointer = _package_backups() / f"{_norm(target)}-latest.json"
     try: root = Path(json.loads(pointer.read_text(encoding="utf-8"))["path"])
     except Exception as error: raise FileNotFoundError("No previous tone-package state exists for this song") from error
     sync = SYNC_DIR / f"{_norm(target)}.json"
