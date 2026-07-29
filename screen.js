@@ -371,7 +371,13 @@
                 else if (key === 'amp') next.amp_db = committed;
                 else if (key === 'nam') next.nam_output = committed;
             }));
-            if (Object.keys(next).length) latestMixerSnapshot = next;
+            if (Object.keys(next).length) {
+                latestMixerSnapshot = next;
+                const context = bridgeContext();
+                const activeTone = String((window.RbMegaChain && window.RbMegaChain.forcedToneKey && window.RbMegaChain.forcedToneKey()) || resolveHighwayTone() || '');
+                const preset = stagedPresetFor(context, activeTone);
+                if (preset) Object.assign(preset.mixer || (preset.mixer = {}), next);
+            }
         } catch (_) {
         } finally {
             mixerReadbackBusy = false;
@@ -818,7 +824,7 @@
             .filter(item => item.key && !seen.has(normalise(item.key)) && seen.add(normalise(item.key)));
         const preset = stagedPresetFor(context, activeTone);
         return {
-            ...context, activeTone, tones, mixer: { ...(preset && preset.mixer || {}), ...latestMixerSnapshot },
+            ...context, activeTone, tones, mixer: { ...(preset ? preset.mixer : latestMixerSnapshot) },
             forcedTone: window.RbMegaChain && window.RbMegaChain.forcedToneKey ? String(window.RbMegaChain.forcedToneKey() || '') : '',
             namAvailable: chainUsesNam(preset && preset.pieces),
             status: { ...(window.__feedToneBridgeStatus || {}) },
@@ -867,7 +873,7 @@
         if (!fields[key]) throw new Error('Unknown mixer control');
         const state = bridgePanelState();
         const preset = stagedPresetFor(state, state.activeTone);
-        const profile = { song_percent: 65, monitor: 1, input_db: 0, amp_db: 0, nam_output: 1, ...(preset && preset.mixer || {}), ...latestMixerSnapshot };
+        const profile = { song_percent: 65, monitor: 1, input_db: 0, amp_db: 0, nam_output: 1, ...(preset ? preset.mixer : latestMixerSnapshot) };
         profile[fields[key]] = Number(value);
         const result = await applyLiveMixer(profile, [key], true, preset && preset.pieces || []);
         if (preset) Object.assign(preset.mixer || (preset.mixer = {}), profile);
@@ -910,6 +916,7 @@
         const restorePackage = root.querySelector('[data-ft-restore]');
         let toneIdentity = '';
         let saveTimer = null;
+        let pendingMixer = null;
         const showMessage = (value, error) => { message.textContent = value; message.dataset.error = error ? '1' : '0'; };
         const render = () => {
             const state = bridgePanelState();
@@ -948,12 +955,19 @@
                 output.textContent = input.dataset.ftMixer === 'song' ? `${Math.round(Number(input.value))}%` : input.dataset.ftMixer === 'monitor' || input.dataset.ftMixer === 'nam' ? `${Number(input.value).toFixed(2)}x` : `${Number(input.value).toFixed(1)} dB`;
             });
         };
+        const commitPendingMixer = async () => {
+            clearTimeout(saveTimer);
+            const pending = pendingMixer;
+            pendingMixer = null;
+            if (pending) await setPanelMixer(pending.key, pending.value);
+        };
         root.querySelectorAll('[data-ft-mixer]').forEach(input => input.addEventListener('input', () => {
-            render(); clearTimeout(saveTimer); saveTimer = setTimeout(async () => { try { await setPanelMixer(input.dataset.ftMixer, input.value); render(); showMessage('Live mixer verified in FeedBack.'); } catch (error) { showMessage(String(error.message || error), true); } }, 90);
+            render(); clearTimeout(saveTimer); pendingMixer = { key: input.dataset.ftMixer, value: input.value };
+            saveTimer = setTimeout(async () => { try { await commitPendingMixer(); render(); showMessage('Live mixer verified in FeedBack.'); } catch (error) { showMessage(String(error.message || error), true); } }, 90);
         }));
         arrangementList.addEventListener('change', async () => { try { showMessage(`Loading ${arrangementList.options[arrangementList.selectedIndex].text}...`); await selectPanelArrangement(arrangementList.value); showMessage('Arrangement loaded.'); render(); } catch (error) { showMessage(String(error.message || error), true); } });
         follow.addEventListener('click', async () => { try { await followPanelTimeline(); showMessage('Following the song timeline.'); render(); } catch (error) { showMessage(String(error.message || error), true); } });
-        save.addEventListener('click', async () => { try { const result = await savePanelMixer(); showMessage(`Saved for ${result.arrangement} / ${result.tone}.`); } catch (error) { showMessage(String(error.message || error), true); } });
+        save.addEventListener('click', async () => { try { await commitPendingMixer(); const result = await savePanelMixer(); showMessage(`Saved for ${result.arrangement} / ${result.tone}.`); } catch (error) { showMessage(String(error.message || error), true); } });
         importPackage.addEventListener('click', () => packageInput.click());
         packageInput.addEventListener('change', async () => {
             const file = packageInput.files && packageInput.files[0];
