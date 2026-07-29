@@ -373,10 +373,6 @@
             }));
             if (Object.keys(next).length) {
                 latestMixerSnapshot = next;
-                const context = bridgeContext();
-                const activeTone = String((window.RbMegaChain && window.RbMegaChain.forcedToneKey && window.RbMegaChain.forcedToneKey()) || resolveHighwayTone() || '');
-                const preset = stagedPresetFor(context, activeTone);
-                if (preset) Object.assign(preset.mixer || (preset.mixer = {}), next);
             }
         } catch (_) {
         } finally {
@@ -524,14 +520,7 @@
         activeContext = '';
         activeToneContext = '';
         lastHighwayIdentity = '';
-        const saved = Array.from(originals.entries());
         originals.clear();
-        await queueMixerWrite(async () => {
-            for (const [key, item] of saved) {
-                if (manualOverrides.has(key)) continue;
-                try { await setFader(item.fader, item.value, false); } catch (_) {}
-            }
-        });
         manualOverrides.clear();
     }
 
@@ -1006,14 +995,21 @@
 
     let playerButton = null;
     let bridgeHome = null;
+    let bridgeNextSibling = null;
 
     function closePlayerPanel() {
         const dialog = document.getElementById('feedtone-player-dialog');
         const root = document.getElementById('feedtone-bridge-root');
-        if (root && bridgeHome && bridgeHome.isConnected) {
-            bridgeHome.replaceWith(root);
-            bridgeHome = null;
+        try {
+            if (root && bridgeHome && bridgeHome.isConnected) {
+                if (bridgeNextSibling && bridgeNextSibling.parentNode === bridgeHome) bridgeNextSibling.before(root);
+                else bridgeHome.appendChild(root);
+            }
+        } catch (_) {
+            // Player UI relocation must never abort tone and mixer preparation.
         }
+        bridgeHome = null;
+        bridgeNextSibling = null;
         if (dialog && dialog.open) dialog.close();
         if (playerButton) playerButton.className = 'px-3 py-1.5 bg-dark-600 hover:bg-dark-500 rounded-lg text-xs text-gray-300 transition';
     }
@@ -1036,9 +1032,9 @@
             dialog.addEventListener('cancel', event => { event.preventDefault(); closePlayerPanel(); });
             dialog.addEventListener('click', event => { if (event.target === dialog) closePlayerPanel(); });
         }
-        if (!bridgeHome || !bridgeHome.parentNode) {
-            bridgeHome = document.createComment('FeedTone bridge home');
-            root.parentNode.insertBefore(bridgeHome, root);
+        if (!bridgeHome || !bridgeHome.isConnected) {
+            bridgeHome = root.parentNode;
+            bridgeNextSibling = root.nextSibling;
         }
         dialog.querySelector('[data-ft-player-body]').appendChild(root);
         if (!dialog.open) dialog.showModal();
