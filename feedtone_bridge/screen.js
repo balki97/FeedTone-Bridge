@@ -996,7 +996,10 @@
     function closePlayerPanel() {
         const dialog = document.getElementById('feedtone-player-dialog');
         const root = document.getElementById('feedtone-bridge-root');
-        if (root && bridgeHome && bridgeHome.parentNode) bridgeHome.parentNode.insertBefore(root, bridgeHome);
+        if (root && bridgeHome && bridgeHome.isConnected) {
+            bridgeHome.replaceWith(root);
+            bridgeHome = null;
+        }
         if (dialog && dialog.open) dialog.close();
         if (playerButton) playerButton.className = 'px-3 py-1.5 bg-dark-600 hover:bg-dark-500 rounded-lg text-xs text-gray-300 transition';
     }
@@ -1128,6 +1131,7 @@
             try { await fetch('/api/rescan', { method: 'POST' }); } catch (_) {}
             await new Promise(resolve => setTimeout(resolve, 450));
             if (typeof window.playSong !== 'function') throw new Error('FeedBack player is not ready');
+            closePlayerPanel();
             const rawIndex = pending.arrangement_index;
             const arrangementIndex = rawIndex === null || rawIndex === undefined ? undefined : Math.max(0, Number(rawIndex));
             const songReady = waitForSongReady();
