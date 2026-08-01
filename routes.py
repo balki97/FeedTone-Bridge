@@ -291,6 +291,7 @@ def setup(app: FastAPI, context: dict) -> None:
         filename = Path(str(payload.get("filename") or "")).name
         arrangement = str(payload.get("arrangement") or "")[:128]
         tone = str(payload.get("tone") or "")[:256]
+        source_tone = str(payload.get("source_tone") or "")[:256]
         mixer = _safe_mixer(payload.get("mixer") if isinstance(payload.get("mixer"), dict) else {})
         if not filename.casefold().endswith((".feedpak", ".sloppak")) or not arrangement or not tone or not mixer:
             return {"ok": False, "reason": "filename, arrangement, tone and mixer are required"}
@@ -318,7 +319,9 @@ def setup(app: FastAPI, context: dict) -> None:
             entry = profiles.setdefault(_norm(filename), {})
             entry.update({"filename": filename, "title": str(payload.get("title") or "")[:256], "artist": str(payload.get("artist") or "")[:256]})
             selected = entry.setdefault("arrangements", {}).setdefault(_norm(arrangement), {})
-            selected.setdefault("tones", {})[tone] = dict(mixer)
+            tones = selected.setdefault("tones", {})
+            tones[tone] = dict(mixer)
+            if source_tone: tones[source_tone] = dict(mixer)
             _write_json(PROFILE_FILE, data)
         except Exception as error:
             return {"ok": False, "reason": f"mixer profile could not be saved: {error}"}

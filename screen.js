@@ -850,7 +850,9 @@
             .filter(item => item.key && !seen.has(normalise(item.key)) && seen.add(normalise(item.key)));
         const preset = stagedPresetFor(context, activeTone);
         return {
-            ...context, activeTone, tones, mixer: { ...(preset ? preset.mixer : latestMixerSnapshot) },
+            ...context, activeTone,
+            sourceTone: String(preset && preset.feedtone_source_tone_key || ''),
+            tones, mixer: { ...(preset ? preset.mixer : latestMixerSnapshot) },
             enabled: bridgeEnabled,
             forcedTone: window.RbMegaChain && window.RbMegaChain.forcedToneKey ? String(window.RbMegaChain.forcedToneKey() || '') : '',
             namAvailable: chainUsesNam(preset && preset.pieces),
@@ -918,7 +920,7 @@
         const state = bridgePanelState();
         const response = await fetch('/api/plugins/feedtone_bridge/mix', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: state.filename, title: state.title, artist: state.artist, arrangement: state.arrangement, tone: state.activeTone, mixer: state.mixer }),
+            body: JSON.stringify({ filename: state.filename, title: state.title, artist: state.artist, arrangement: state.arrangement, tone: state.activeTone, source_tone: state.sourceTone, mixer: state.mixer }),
         });
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.reason || `Save returned ${response.status}`);
